@@ -21,11 +21,13 @@ async def cmd_start(message: types.Message):
 
 @dp.message()
 async def cmd_start(message: types.Message):
-    mess = " "
-    cursor.execute('SELECT * FROM numbers WHERE fullnumber='+message.text)
+    phone = message.text
+    phone = phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
+    print(f"phone={phone}")
+    cursor.execute('SELECT * FROM numbers WHERE fullnumber=' + phone)
     number = cursor.fetchall()
     print(number)
-    await message.reply(number[0][6]+"\n"+number[0][7])
+    await message.reply(number[0][6]+" ("+number[0][7]+")")
 
 #
 async def main():
