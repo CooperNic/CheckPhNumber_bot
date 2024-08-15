@@ -78,8 +78,8 @@ con.execute("""
     );
 """)
 csv_files = sorted(glob.glob("./inCSV/*.csv"))
-i=0
 for csvf in csv_files:
+    i=0
     with open(csvf, 'r', encoding='utf-8') as f:
         for line in f:
             if i>0 :     
