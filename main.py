@@ -17,7 +17,7 @@ dp = Dispatcher()
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Hello you typed START command!")
+    await message.answer("Реестр российской системы и плана нумерации. Для получения информации о принадлежности номера оператору и решиону введите номер телефона")
 
 @dp.message()
 async def cmd_start(message: types.Message):
