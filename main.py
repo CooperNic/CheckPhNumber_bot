@@ -26,14 +26,17 @@ async def cmd_start(message: types.Message):
 
 @dp.message()
 async def cmd_start(message: types.Message):
-    phone = message.text
-    phone = phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
-    print(f"phone={phone}")
+    entered_phone_number = message.text
+    phone = entered_phone_number.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
+    print(f"Введенный номер={entered_phone_number}, нормализованный номер={phone}, full_name, username, id = '{message.from_user.full_name}', '@{message.from_user.username}', '{message.from_user.id}'")
     cursor.execute('SELECT * FROM numbers WHERE fullnumber=' + phone)
     number = cursor.fetchall()
-    print(number)
-    await message.reply(number[0][6]+" ("+number[0][7]+")")
-
+    if number:
+        print(number)
+        await message.reply(number[0][6]+" ("+number[0][7]+")")
+    else:
+        print("Номер не найден.")
+        await message.reply("Номер не найден.")
 #
 async def main():
     await dp.start_polling(bot)
