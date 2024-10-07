@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters.command import Command
 import sqlite3 as sl
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 API_TOKEN = os.getenv("API_TOKEN")
@@ -29,8 +30,12 @@ async def cmd_start(message: types.Message):
     entered_phone_number = message.text
     phone = entered_phone_number.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
     print(f"Введенный номер={entered_phone_number}, нормализованный номер={phone}, full_name, username, id = '{message.from_user.full_name}', '@{message.from_user.username}', '{message.from_user.id}'")
+    start_time = time.time()
     cursor.execute('SELECT * FROM numbers WHERE fullnumber=' + phone)
     number = cursor.fetchall()
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Время выполнения: {execution_time} секунд. ")
     if number:
         print(number)
         await message.reply(number[0][6]+" ("+number[0][7]+")")
