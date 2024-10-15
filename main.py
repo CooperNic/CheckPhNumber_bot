@@ -54,10 +54,10 @@ async def cmd_start(message: types.Message):
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Время выполнения: {execution_time} секунд. ")
-    log_txt_end = "|"+ message.from_user.full_name if message.from_user.full_name is not None  else "None" 
-    log_txt_end = log_txt_end + "|" + "@" + message.from_user.username if message.from_user.username is not None  else "None"
-    log_txt_end = log_txt_end + "|" + str(message.from_user.id) if message.from_user.id is not None  else "None"
-    log_txt_end = log_txt_end + "|" + str(execution_time) if execution_time is not None  else "None"
+    log_txt_end = "|"+ message.from_user.full_name if message.from_user.full_name is not None  else "|N/A" 
+    log_txt_end = log_txt_end + ("|" + "@" + message.from_user.username if message.from_user.username is not None  else "|N/A")
+    log_txt_end = log_txt_end + ("|" + str(message.from_user.id) if message.from_user.id is not None  else "|N/A")
+    log_txt_end = log_txt_end + ("|" + str(execution_time) if execution_time is not None  else "|N/A")
     if number:
         print(number)
         logger.info(entered_phone_number + "|"+ str(number[0][2]) + "|"+ number[0][6] + "|" + number[0][7] + log_txt_end )
