@@ -1,5 +1,20 @@
 #!/bin/bash
-wget https://opendata.digital.gov.ru/downloads/ABC-3xx.csv?1721899999426 --no-check-certificate -O ABC-3xx.csv
-wget https://opendata.digital.gov.ru/downloads/ABC-4xx.csv?1721899999426 --no-check-certificate -O ABC-4xx.csv
-wget https://opendata.digital.gov.ru/downloads/ABC-8xx.csv?1721899999426 --no-check-certificate -O ABC-8xx.csv
-wget https://opendata.digital.gov.ru/downloads/DEF-9xx.csv?1721899999426 --no-check-certificate -O DEF-9xx.csv
+# Скачивает текущие CSV реестра нумерации в inCSV/archive/YYYYMMDD/ и обновляет inCSV/.
+# Дата каталога потом используется импортёром: python -m checkph.importer --backfill
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+DATE_DIR="${1:-$(date +%Y%m%d)}"
+ARCHIVE="inCSV/archive/${DATE_DIR}"
+BASE_URL="https://opendata.digital.gov.ru/downloads"
+FILES=(ABC-3xx.csv ABC-4xx.csv ABC-8xx.csv DEF-9xx.csv)
+
+mkdir -p "${ARCHIVE}" inCSV
+
+for f in "${FILES[@]}"; do
+    wget --no-check-certificate -O "${ARCHIVE}/${f}" "${BASE_URL}/${f}"
+    cp "${ARCHIVE}/${f}" "inCSV/${f}"
+done
+
+echo "Снимок сохранён в ${ARCHIVE}; импорт: .venv/bin/python -m checkph.importer --backfill"
