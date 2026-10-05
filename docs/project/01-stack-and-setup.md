@@ -11,7 +11,8 @@
 | Telegram | aiogram 3.31, long polling |
 | Конфигурация | python-dotenv, файл `.env` |
 | Хранилище | SQLite через стандартный `sqlite3`, WAL |
-| Загрузка исходных данных | bash + `wget` (`getcsv.sh`) |
+| Загрузка исходных данных | `checkph.sync` (`urllib`), обёртка `getcsv.sh`; архив — zip |
+| Планировщик sync | systemd timer (`deploy/checkph-sync.timer`) или cron |
 | Тесты | pytest (`requirements-dev.txt`) |
 | Линтер, Docker, CI | нет |
 

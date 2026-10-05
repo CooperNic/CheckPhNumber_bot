@@ -154,5 +154,6 @@ def test_backfill_orders_by_dir_name_and_is_idempotent(con, snapshots):
 
 def test_date_from_dir_name():
     assert importer.date_from_dir_name("20261004") == "2026-10-04"
+    assert importer.date_from_dir_name("20261005-0010") == "2026-10-05T00:10"
     with pytest.raises(ValueError):
         importer.date_from_dir_name("latest")

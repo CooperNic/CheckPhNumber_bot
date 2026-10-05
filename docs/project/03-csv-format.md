@@ -11,7 +11,9 @@
 - `https://opendata.digital.gov.ru/downloads/ABC-8xx.csv`
 - `https://opendata.digital.gov.ru/downloads/DEF-9xx.csv`
 
-`getcsv.sh` скачивает четыре файла в `inCSV/archive/YYYYMMDD/` (дата — текущая или первый аргумент скрипта) и копирует их в `inCSV/`. Дата каталога потом становится датой снимка при импорте. Загрузка идёт с `--no-check-certificate`.
+Индекс каталога: `https://opendata.digital.gov.ru/downloads/` (nginx listing с датой файла). У самих CSV нет `ETag` / `Last-Modified`.
+
+`python -m checkph.sync` (обёртка `./getcsv.sh`) проверяет индекс, при обновлении скачивает четыре файла, импортирует снимок и сохраняет его как `inCSV/archive/YYYYMMDD.zip`. Копии последнего снимка в `inCSV/*.csv` остаются несжатыми. Дата снимка берётся из даты в индексе, не из времени запуска. Загрузка HTTPS идёт без проверки сертификата (как раньше у `wget --no-check-certificate`).
 
 ## Формат файла
 
@@ -36,6 +38,20 @@
 
 Полный номер собирается как `7` + код + хвост с ведущими нулями до 7 цифр.
 
+## Архив на диске
+
+Снимки хранятся zip-архивом (`ZIP_DEFLATED`, уровень 9) в `inCSV/archive/`:
+
+| Имя | Смысл |
+|---|---|
+| `YYYYMMDD.zip` | снимок за календарный день |
+| `YYYYMMDD-HHMM.zip` | повторная публикация в тот же день с другим содержимым |
+| `_rejected/<время>.zip` | бракованный снимок (не импортирован) |
+
+Внутри zip в корне лежат четыре CSV. Хеш снимка (`import_batch.files_sha256`) считается по байтам CSV (имя + содержимое), не по контейнеру zip — повторная упаковка не выглядит новым снимком. Один реальный снимок (~63 МБ CSV) сжимается примерно до 3,3 МБ.
+
+Каталоги `YYYYMMDD/` со старыми несжатыми CSV один раз упаковываются: `python -m checkph.sync --compress-existing` (каталог удаляется только после сверки хеша с zip).
+
 ## Свойства данных
 
 Проверены на снимках 2024–2026 годов:
@@ -47,7 +63,7 @@
 
 ## Чтение и валидация (`checkph/csv_reader.py`)
 
-`read_snapshot(dir)` читает все `*.csv` каталога через `csv.reader` и возвращает список `RangeRow(code, from_number, to_number, operator_name, region_raw, gar_raw, inn)`. Пустые строки пропускаются, пустой ИНН становится `None`.
+`read_snapshot(path)` читает все `*.csv` каталога или zip через `csv.reader` и возвращает список `RangeRow(code, from_number, to_number, operator_name, region_raw, gar_raw, inn)`. Пустые строки пропускаются, пустой ИНН становится `None`. `snapshot_sha256(path)` — тот же хеш для каталога и для zip с тем же содержимым. `pack_snapshot_zip(dir, zip_path)` упаковывает каталог.
 
 Снимок отклоняется с `SnapshotError`, если:
 

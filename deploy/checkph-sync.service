@@ -1,0 +1,13 @@
+[Unit]
+Description=CheckPhNumber: sync numbering registry CSV from opendata.digital.gov.ru
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/cooper/projects/checkphnumber_bot
+ExecStart=/home/cooper/projects/checkphnumber_bot/.venv/bin/python -m checkph.sync
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

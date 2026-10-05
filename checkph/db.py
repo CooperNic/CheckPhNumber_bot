@@ -27,6 +27,7 @@ def connect(path: str | Path = DEFAULT_DB_PATH, *, read_only: bool = False) -> s
     con.isolation_level = None  # autocommit; BEGIN/COMMIT вручную
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
+    con.execute("PRAGMA busy_timeout = 30000")
     if not read_only:
         con.execute("PRAGMA journal_mode = WAL")
         con.execute("PRAGMA synchronous = NORMAL")

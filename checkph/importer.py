@@ -23,12 +23,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import db
-from .csv_reader import RangeRow, read_snapshot, snapshot_files, snapshot_sha256
+from .csv_reader import RangeRow, read_snapshot, snapshot_sha256
 
 log = logging.getLogger(__name__)
 
 ARCHIVE_DIR = Path("inCSV/archive")
-_DATE_DIR_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
+# YYYYMMDD или YYYYMMDD-HHMM (повторная публикация в тот же день).
+_DATE_STEM_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})(?:-(\d{2})(\d{2}))?$")
 
 
 @dataclass(slots=True)
@@ -54,11 +55,31 @@ class ImportResult:
 
 
 def date_from_dir_name(name: str) -> str:
-    m = _DATE_DIR_RE.match(name)
+    """Дата снимка из имени каталога или stem zip: YYYYMMDD → YYYY-MM-DD, YYYYMMDD-HHMM → YYYY-MM-DDTHH:MM."""
+    stem = name[:-4] if name.lower().endswith(".zip") else name
+    m = _DATE_STEM_RE.match(stem)
     if not m:
-        raise ValueError(f"Имя каталога {name!r} не похоже на YYYYMMDD")
-    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        raise ValueError(f"Имя снимка {name!r} не похоже на YYYYMMDD или YYYYMMDD-HHMM")
+    date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    if m.group(4) is not None:
+        return f"{date}T{m.group(4)}:{m.group(5)}"
+    return date
 
+
+def list_archive_snapshots(archive_dir: str | Path) -> list[Path]:
+    """Каталоги YYYYMMDD и файлы YYYYMMDD.zip / YYYYMMDD-HHMM.zip по возрастанию имени."""
+    root = Path(archive_dir)
+    items: list[Path] = []
+    if not root.is_dir():
+        return items
+    for p in root.iterdir():
+        if p.name.startswith(".") or p.name.startswith("_"):
+            continue
+        if p.is_dir() and _DATE_STEM_RE.match(p.name):
+            items.append(p)
+        elif p.is_file() and p.suffix.lower() == ".zip" and _DATE_STEM_RE.match(p.stem):
+            items.append(p)
+    return sorted(items, key=lambda p: p.name)
 
 def _operator_key(row: RangeRow) -> tuple[str | None, str]:
     """Ключ оператора: ИНН, а при его отсутствии — имя."""
@@ -116,8 +137,8 @@ def _load_current_ranges(con: sqlite3.Connection) -> dict[tuple[int, int, int], 
     }
 
 
-def import_snapshot(con: sqlite3.Connection, snapshot_dir: str | Path, source_date: str) -> ImportResult:
-    """Импортирует один снимок. Повторный вызов с той же датой ничего не меняет."""
+def import_snapshot(con: sqlite3.Connection, snapshot: str | Path, source_date: str) -> ImportResult:
+    """Импортирует один снимок (каталог или zip). Повторный вызов с той же датой ничего не меняет."""
     result = ImportResult(source_date=source_date, batch_id=None)
     existing = con.execute("SELECT id FROM import_batch WHERE source_date = ?", (source_date,)).fetchone()
     if existing is not None:
@@ -129,14 +150,14 @@ def import_snapshot(con: sqlite3.Connection, snapshot_dir: str | Path, source_da
     if latest is not None and source_date <= latest:
         raise ValueError(f"Снимок {source_date} не новее последнего импортированного ({latest}); порядок импорта нарушен")
 
-    files = snapshot_files(snapshot_dir)
-    rows = read_snapshot(snapshot_dir)
+    rows = read_snapshot(snapshot)
     result.ranges_in_snapshot = len(rows)
+    digest = snapshot_sha256(snapshot)
 
     with db.transaction(con):
         cur = con.execute(
             "INSERT INTO import_batch (source_date, files_sha256, range_count) VALUES (?, ?, ?)",
-            (source_date, snapshot_sha256(files), len(rows)),
+            (source_date, digest, len(rows)),
         )
         batch_id = cur.lastrowid
         result.batch_id = batch_id
@@ -181,13 +202,13 @@ def import_snapshot(con: sqlite3.Connection, snapshot_dir: str | Path, source_da
 
 
 def backfill(con: sqlite3.Connection, archive_dir: str | Path = ARCHIVE_DIR) -> list[ImportResult]:
-    """Импортирует все каталоги ``archive/YYYYMMDD`` по возрастанию даты."""
-    dirs = sorted(p for p in Path(archive_dir).iterdir() if p.is_dir() and _DATE_DIR_RE.match(p.name))
-    if not dirs:
-        raise ValueError(f"В {archive_dir} нет каталогов вида YYYYMMDD")
+    """Импортирует все снимки ``archive/YYYYMMDD`` и ``*.zip`` по возрастанию имени."""
+    snaps = list_archive_snapshots(archive_dir)
+    if not snaps:
+        raise ValueError(f"В {archive_dir} нет снимков вида YYYYMMDD или YYYYMMDD.zip")
     results = []
-    for d in dirs:
-        res = import_snapshot(con, d, date_from_dir_name(d.name))
+    for snap in snaps:
+        res = import_snapshot(con, snap, date_from_dir_name(snap.name))
         log.info(res.summary())
         results.append(res)
     return results
@@ -197,9 +218,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Импорт снимка реестра нумерации в SQLite")
     parser.add_argument("--db", default=db.DEFAULT_DB_PATH, help="путь к базе (по умолчанию %(default)s)")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--dir", help="каталог одного снимка")
-    group.add_argument("--backfill", action="store_true", help=f"импортировать все каталоги {ARCHIVE_DIR}/YYYYMMDD по порядку")
-    parser.add_argument("--date", help="дата снимка YYYY-MM-DD (для --dir; по умолчанию из имени каталога)")
+    group.add_argument("--dir", help="каталог или zip одного снимка")
+    group.add_argument(
+        "--backfill",
+        action="store_true",
+        help=f"импортировать все снимки {ARCHIVE_DIR}/YYYYMMDD(.zip) по порядку",
+    )
+    parser.add_argument("--date", help="дата снимка (для --dir; по умолчанию из имени)")
     parser.add_argument("--archive", default=str(ARCHIVE_DIR), help="каталог архива для --backfill")
     args = parser.parse_args(argv)
 

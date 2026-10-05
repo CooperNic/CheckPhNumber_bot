@@ -2,7 +2,7 @@
 
 [← Оглавление](project-docs.md)
 
-Файл: `db.sqlite/registry.db` (путь — `DB_PATH` в `.env`). Схема — `checkph/schema.sql`, применяется `db.init_schema()` идемпотентно (`IF NOT EXISTS`). Соединение открывается `db.connect()` в режиме autocommit (WAL, `synchronous=NORMAL`, `foreign_keys=ON`); транзакции — явно через контекст `db.transaction(con)`.
+Файл: `db.sqlite/registry.db` (путь — `DB_PATH` в `.env`). Схема — `checkph/schema.sql`, применяется `db.init_schema()` идемпотентно (`IF NOT EXISTS`). Соединение открывается `db.connect()` в режиме autocommit (WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=30000`); транзакции — явно через контекст `db.transaction(con)`.
 
 ## Три слоя
 
@@ -30,6 +30,7 @@
 | `operator` | оператор; ключ — `inn` (уникален, может быть NULL — тогда уникальность по `name`); `name` — самое частое написание в последнем снимке |
 | `operator_name_variant` | все встреченные написания оператора с `first_seen_batch`/`last_seen_batch` |
 | `number_range` | версия диапазона: `code`, `from_number`, `to_number`, `operator_id`, `region_raw`, `gar_raw`, `valid_from_batch`, `valid_to_batch` (NULL = действует) |
+| `sync_state` | курсор синхронизации с порталом: `filename`, `remote_mtime`, `size_bytes`, `content_sha256`, `content_checked_at` |
 
 Ограничения: `code` 100–999, границы 0–9 999 999, `to_number >= from_number`, ИНН 10 или 12 цифр.
 

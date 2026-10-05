@@ -119,6 +119,15 @@ CREATE TABLE IF NOT EXISTS lookup_event (
 CREATE INDEX IF NOT EXISTS ix_lookup_event_number
     ON lookup_event (number);
 
+-- Курсор синхронизации с порталом: что уже видели в индексе downloads/.
+CREATE TABLE IF NOT EXISTS sync_state (
+    filename           TEXT PRIMARY KEY,                  -- ABC-3xx.csv и т.п.
+    remote_mtime       TEXT NOT NULL,                     -- дата из индекса nginx, как есть
+    size_bytes         INTEGER,                           -- точный Content-Length при последней проверке
+    content_sha256     TEXT,                              -- sha256 одного файла при последней проверке
+    content_checked_at TEXT NOT NULL                      -- когда последний раз качали/сверяли содержимое
+);
+
 -- ---------------------------------------------------------------------------
 -- Представления
 -- ---------------------------------------------------------------------------
