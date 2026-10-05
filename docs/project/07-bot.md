@@ -12,10 +12,12 @@
 
 `bot.main()`:
 
-1. читает `.env` (`API_TOKEN` обязателен, иначе выход с ошибкой; `DB_PATH`, `ACCESS_LOG` — необязательны);
+1. читает `.env` (`API_TOKEN` обязателен, иначе выход с ошибкой; `DB_PATH`, `ACCESS_LOG`, `TELEGRAM_PROXY` — необязательны);
 2. открывает `access.log` на дозапись;
 3. открывает базу и вызывает `init_schema()` (идемпотентно);
-4. создаёт `Repository` и запускает long polling; соединение закрывается при остановке.
+4. создаёт `Repository` и запускает long polling через `TrustEnvAiohttpSession` (учитывает `https_proxy` / `TELEGRAM_PROXY`, как curl); соединение закрывается при остановке.
+
+Если с сервера `curl` до Telegram ходит только через прокси, а бот без прокси получает `Request timeout error` — задайте в окружении `https_proxy`/`http_proxy` или `TELEGRAM_PROXY` в `.env`.
 
 ## Доступ к базе
 

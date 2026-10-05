@@ -9,7 +9,12 @@ import sqlite3
 import threading
 import time
 
+from aiohttp import ClientSession
+from aiohttp.hdrs import USER_AGENT
+from aiohttp.http import SERVER_SOFTWARE
 from aiogram import Bot, Dispatcher, types
+from aiogram.__meta__ import __version__
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters.command import Command
 from dotenv import load_dotenv
 
@@ -23,6 +28,38 @@ BAD_FORMAT_TEXT = "Не похоже на номер. Нужны 11 цифр, н
 NOT_FOUND_TEXT = "Номер не найден."
 
 access_log = logging.getLogger("checkph.access")
+
+
+class TrustEnvAiohttpSession(AiohttpSession):
+    """Как curl: учитывает HTTP(S)_PROXY / ALL_PROXY из окружения.
+
+    Стандартный AiohttpSession ходит на api.telegram.org напрямую; на хостах,
+    где Telegram доступен только через прокси, это даёт Request timeout error.
+    """
+
+    async def create_session(self) -> ClientSession:
+        if self._should_reset_connector:
+            await self.close()
+
+        if self._session is None or self._session.closed:
+            self._session = ClientSession(
+                connector=self._connector_type(**self._connector_init),
+                headers={USER_AGENT: f"{SERVER_SOFTWARE} aiogram/{__version__}"},
+                trust_env=True,
+            )
+            self._should_reset_connector = False
+
+        return self._session
+
+
+def _apply_telegram_proxy_env() -> None:
+    """TELEGRAM_PROXY из .env пробрасывает в HTTPS_PROXY, если системный прокси не задан."""
+    proxy = os.getenv("TELEGRAM_PROXY")
+    if not proxy:
+        return
+    for key in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        if not os.getenv(key):
+            os.environ[key] = proxy
 
 
 class Repository:
@@ -108,6 +145,7 @@ def _setup_access_log(path: str) -> None:
 
 async def main() -> None:
     load_dotenv()
+    _apply_telegram_proxy_env()
     token = os.getenv("API_TOKEN")
     if not token:
         raise SystemExit("API_TOKEN не задан в .env")
@@ -117,8 +155,9 @@ async def main() -> None:
     con = db.connect(db_path)
     db.init_schema(con)
     repo = Repository(con)
-    bot = Bot(token=token)
+    bot = Bot(token=token, session=TrustEnvAiohttpSession())
     try:
         await build_dispatcher(repo).start_polling(bot)
     finally:
+        await bot.session.close()
         con.close()
